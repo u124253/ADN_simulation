@@ -1,6 +1,8 @@
 import random, math, numpy as np, matplotlib.pyplot as plt
 from datetime import datetime
-
+"""
+Devuelve error teorico para un codigo de repeticion(3) usando ML
+"""
 def Pe_teorico(p):
     """Probabilidad de error teórica MV / ML (n = 3)."""
     if p<= 0.75:
@@ -8,17 +10,21 @@ def Pe_teorico(p):
     
     else:
         return 1 - 16 * (p / 3)**3
-
+"""
+Devuelve el N (numero de simulaciones necesarias) para lograr la precision deseada
+"""
 def N_requerido(p, k=384):
     Pe = Pe_teorico(p)
     N0  = k / Pe
     return max(1, int(N0 ))
 
+"""
+Decodifica usando ML logaritmico
+"""
 def log_ml_decoder(recibido, p):
     p = max(p, 1e-15)
     scores_log = {}
     max_log = float("-inf")
-
     for nuc in prior.keys():
         conteo = recibido.count(nuc)
         # Protección contra log(0)
@@ -35,16 +41,21 @@ def log_ml_decoder(recibido, p):
     max_nucs = [k for k, v in scores_log.items() if abs(v - max_log) < epsilon]
     return max_nucs[0] if len(max_nucs) == 1 else random.choice(max_nucs)
 
-
+"""
+Devuelve un elemento de un diccionario siguiendo una distribución a priori
+"""
 def rand_nucleotido(prior):
     nucleotidos = list(prior.keys())
     pesos = list(prior.values())
     return random.choices(nucleotidos, weights=pesos, k=1)[0]
-
+"""
+Devuelve un numero aleatorio [0,1] distribuido de manera uniforme
+"""
 def rand_prob():
     return random.random()
 
 """
+Devuelve la lista de nucleotidos, suprimiendo el seleccionado.
 En caso de que ocurra el cambio de letra se selecciona alguna de las 3 restantes diferentes a la original
 """
 def rand_nuc_diferente(nucleotido):
@@ -77,7 +88,9 @@ def fill_erasures(secuencia,prior):
         else:
             secuencia_filled.append(nuc)
     return secuencia_filled
-    
+"""
+Realiza la decodificacion de la  secuencia recibida utilizando majority voting
+"""
 def majority_voting(nucleotido, recibido,prior):
     #Rellenamos los nucleotidos borrados, *
     validos = fill_erasures(recibido,prior)
@@ -114,7 +127,7 @@ def prob_transicion(nuc,recibido,p,n):
         return((p/3)**n)
 
 """
-Devuelve la log(prob_transicion) dado un nucleotido y la secuencia recibida después de pasar por el canal 
+Devuelve la log(prob_transicion) dado un nucleotido 
 """
 def log_prob_transicion(nuc,recibido,p,n):
     epsilon = 1e-80
@@ -126,7 +139,7 @@ def log_prob_transicion(nuc,recibido,p,n):
     return conteo_nuc * log1 + (n - conteo_nuc) * log2
 
 """
-Dados los nucleotidos maximos, elige al azar en caso de empate 
+Devuelve el nucleotido maximo, elige al azar en caso de empate 
 """
 def choose_maximum(max_nuc_candidates,decoder,prior):
     probabilidades_relativas = []
@@ -298,15 +311,15 @@ for p in p_vals:
     
     contador+=1
 
-    
-    for _ in range (N): # Para N iteraciones 
+    # simulacion con N iteraciones
+    for _ in range (N): 
         nucleotido = rand_nucleotido(prior) #Creamos el nucleotido de manera aleatoria
         deco_nucleotido = ' ' # variable para almacenar el nucleotido decodificado
 
 #codificacón (codigo de repetición)    
         sent_codeword = nucleotido * n 
-#Transmision
-        
+
+#Transmision        
         """
         received_codeword = channel_transmision(sent_codeword,nucleotido,p)     # transmision sobre canal sustitución
         received_erase = erase_channel(sent_codeword,nucleotido,p,p_erase)      # transmision sobre canal borrado
@@ -364,19 +377,22 @@ for p in p_vals:
         """
 # Guardamos promedios
     
-    # canal biológico
+# canal biológico
     sim_mv_bio.append(error_mv_bio/N)
-    sim_ml_bio.append(error_ml_bio/N)
-    sim_map_bio.append(error_map_bio/N)
     sim_log_ml_bio.append(error_log_ml_bio/N)
     sim_log_map_bio.append(error_log_map_bio/N)
+    """
+    sim_ml_bio.append(error_ml_bio/N)
+    sim_map_bio.append(error_map_bio/N)
+    """
+
 """ 
-    # canal borrado
+# canal borrado
     sim_mv_erase.append(error_mv_erase / N)
     # canal inserción
     sim_mv_ins.append(error_mv_ins / N)
     
-    # canal sustitución
+# canal sustitución
     sim_mv.append(error_mv / N)
     sim_ml.append(error_ml / N)
     sim_map.append(error_map / N)
