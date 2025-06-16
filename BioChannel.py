@@ -1,5 +1,6 @@
 import random, math, numpy as np, matplotlib.pyplot as plt
 from datetime import datetime
+
 def Pe_teorico(p):
     """Probabilidad de error teórica MV / ML (n = 3)."""
     if p<= 0.75:
@@ -8,16 +9,9 @@ def Pe_teorico(p):
     else:
         return 1 - 16 * (p / 3)**3
 
-def N_requerido(p, k=200):
-    """Devuelve N = k / Pe, redondeado a 10^m más cercano."""
+def N_requerido(p, k=384):
     Pe = Pe_teorico(p)
     N0  = k / Pe
-    
-    # redondear a potencia de 10
-    #pot10 = 10 ** round(math.log10(N))
-    #Redondear al multiplo mas proximo de 256
-    
-    
     return max(1, int(N0 ))
 
 def log_ml_decoder(recibido, p):
@@ -41,12 +35,6 @@ def log_ml_decoder(recibido, p):
     max_nucs = [k for k, v in scores_log.items() if abs(v - max_log) < epsilon]
     return max_nucs[0] if len(max_nucs) == 1 else random.choice(max_nucs)
 
-    # Obtener los nucleótidos con máxima log-probabilidad
- # Comparación de máximos con tolerancia
-    epsilon = 1e-100
-    max_nucs = [k for k, v in scores_log.items() if abs(v - max_log) < epsilon]
-    # Si hay un único ganador, lo devolvemos; si no, elegimos aleatoriamente entre los mejores
-    return max_nucs[0] if len(max_nucs) == 1 else random.choice(max_nucs)
 
 def rand_nucleotido(prior):
     nucleotidos = list(prior.keys())
@@ -62,7 +50,7 @@ En caso de que ocurra el cambio de letra se selecciona alguna de las 3 restantes
 def rand_nuc_diferente(nucleotido):
     #Selecciona un nucleótido aleatorio diferente al original de forma uniforme.
     opciones = ['A', 'C', 'G', 'T']
-    opciones.remove(nucleotido)      # Elimina el nucleótido original
+    opciones.remove(nucleotido) # Elimina el nucleótido original
     return random.choice(opciones) # Elige uno de los restantes
 
 """
@@ -79,7 +67,6 @@ def freq_nucleotidos(cod_recibido):
 """
 Decodifica usando majority voting, teniendo en cuenta las frecuencias de cada nucleotido
 """
-
 def fill_erasures(secuencia,prior):
     secuencia_filled = []
     for nuc in secuencia:
@@ -92,21 +79,22 @@ def fill_erasures(secuencia,prior):
     return secuencia_filled
     
 def majority_voting(nucleotido, recibido,prior):
+    #Rellenamos los nucleotidos borrados, *
     validos = fill_erasures(recibido,prior)
+    #Contamos las frecuencias de cada nucleotido
     freq = freq_nucleotidos(validos)
-    #print(freq)
-    #print(f"maxxxxx{max(freq.values())}")     
-    if max(freq.values()) < (len(validos)/2): #Si no hay candidato que se repita minimo 2 veces, aleatorio
-        res = list(dict.fromkeys(validos))
+
+     #Si el candidato con mas frecuencia se repite menos de lo necesario, elegimos aleatoriamente
+    if max(freq.values()) < (len(validos)/2):
+        candidatos = list(dict.fromkeys(validos))
+        #Recuperamos las probabilidades de los candidatos
         probabilidades_relativas = []
-        for n in res:
+        for n in candidatos:
             probabilidades_relativas.append(prior[n])
-        #print(res)
-        #print(f"priorssss{probabilidades_relativas}")
-        #print(f"maximos a elegir entre{recibido}")
-        return random.choices(res,probabilidades_relativas)[0] 
+        #Alegimos un candidato al azar 
+        return random.choices(candidatos,probabilidades_relativas)[0] 
         
-    else: #Si existe un nuc que se repite 2 ó 3 veces se elige
+    else: #Si existe un nucleotido que gana por mayoria
         return max(freq, key=freq.get)
 """
 Calcula la probabilidad de transición dado un nucleotido
@@ -115,13 +103,13 @@ def prob_transicion(nuc,recibido,p,n):
     #Cuento cuantos nucleotidos correctos tengo en mi secuencia
     conteo_nuc = recibido.count(nuc)
 
-    # Si todos los nucleotidos son correctos AAA
+    # Si todos los nucleotidos son correctos
     if conteo_nuc == n: 
         return((1-p)**conteo_nuc)
-    # Si la secuencia tiene algun nucleotido correcto e incorrecto AXX AAX
+    # Si la secuencia tiene algun nucleotido correcto e incorrecto 
     if conteo_nuc != 0 and conteo_nuc != n: 
         return((((1-p)**conteo_nuc))*((p/3)**(n-conteo_nuc)))
-    # Si todos los nucleotidos estan incorrectos XXX mn    
+    # Si todos los nucleotidos estan incorrectos     
     if conteo_nuc == 0:
         return((p/3)**n)
 
@@ -135,7 +123,6 @@ def log_prob_transicion(nuc,recibido,p,n):
     log2 = math.log(max(p / 3, epsilon))
 
     conteo_nuc = recibido.count(nuc)
-
     return conteo_nuc * log1 + (n - conteo_nuc) * log2
 
 """
@@ -159,26 +146,23 @@ Dada la probabilidad de transición para cada nucleotido, se detecta cual es el 
 y devuelve los nucleotidos maximos
 """
 def max_nucleotide(probabilidades,decoder):
-    #print(f"probs_max_nucleotide {probabilidades}")
     max_nucleotide = [] 
     max_prob = max(probabilidades.values()) # Detectamos el valor maximo en probabilidad
     eps=1e-9
     if decoder in ("logML","logMAP"):
         for nuc, val in probabilidades.items():
-            if abs(val - max_prob) < eps:      # ¿Está prácticamente igual al máximo?
+            if abs(val - max_prob) < eps: # ¿Está prácticamente igual al máximo?
                 max_nucleotide.append(nuc)
-        #print(f"max nuc logML/MAP {max_nucleotide}")
         return max_nucleotide
     else:
         for nucleotide in probabilidades:# Seleccionamos los valores que tengan ese maximo
-            #print(f"nuclearizaríais:{nucleotide}, problema {probabilidades[nucleotide]}")
             if probabilidades[nucleotide]!= max_prob:
                 continue
             elif probabilidades[nucleotide]== max_prob:
                 max_nucleotide.append(nucleotide)
         return max_nucleotide
 """
-Calcula la probabilidad de transición para cada nucleotido
+Calcula la probabilidad de transición para cada nucleotido deacuerdo a su decodificador.
 """
 def all_nuc_probs(prior, recibido, decoder,p,n):
     probabilidades = {}
@@ -191,13 +175,14 @@ def all_nuc_probs(prior, recibido, decoder,p,n):
 
         elif decoder == 'logML':
             probabilidades[elem] = log_prob_transicion(elem, recibido, p, n)
-            #print(f"log_prob: {elem} { probabilidades[elem]} ")
+
         elif decoder == 'logMAP':
             log_prior = math.log(prior[elem])
             log_likelihood = log_prob_transicion(elem, recibido, p, n)
             probabilidades[elem] = log_prior + log_likelihood
-    #print(probabilidades)
+
     return probabilidades
+
 """
 Calcula las probabilidades de transición para cada nucleotido, detecta los nucleotidos con maxima probabilidad
 y elige el maximo al azar si es necesario
@@ -225,33 +210,30 @@ def channel_transmision(enviado,original,p):
             recibido[nuc] = rand_nuc_diferente(original)
     return recibido
 """
-Simula la transmision sobre un canal simetrico con probabilidad p de cambio de nucleotido
+Simula la transmision sobre un biocanal que integra sustituciones, borrados e inserciones  
 """
 def bio_channel(enviado,original,p_subs,p_erase,p_ins):
-    #print(f"Bio channel P_subs:{p_subs} P_erase:{p_erase} P_ins:{p_ins} ")
     recibido = []
     p_max = 1 - p_erase - p_ins
     if p_subs>p_max:
         p_subs=p_max
+
     for nuc in range(len(enviado)):
         u = rand_prob()
         if u < p_erase: # erase
-            recibido.append('*')
-            #print("erase")
-            
+            recibido.append('*')    
         elif u < p_erase + p_ins: # insert
             recibido.append(enviado[nuc])
-            recibido.append(random.choice(['A','C','G','T']))
-            #print("insert")    
+            recibido.append(random.choice(['A','C','G','T']))   
         elif u < p_erase + p_ins + p_subs:#Substitute
             recibido.append(rand_nuc_diferente(original))
-            #print("subs")
         else:
             recibido.append(enviado[nuc])
-            #print("ok")
     return recibido
+"""
+Simula la transmision sobre un canal que integra sustituciones e inserciones
+"""
 def ins_channel(enviado,original,p_subs,p_ins):
-    #print(f"Bio channel P_subs:{p_subs} P_erase:{p_erase} P_ins:{p_ins} ")
     recibido = []
     for nuc in range(len(enviado)):
         u = rand_prob()
@@ -261,142 +243,140 @@ def ins_channel(enviado,original,p_subs,p_ins):
     
         elif u < p_ins + p_subs:#Substitute
             recibido.append(rand_nuc_diferente(original))
-            #print("subs")
         else:
             recibido.append(enviado[nuc])
-            #print("ok")
     return recibido
-
+"""
+Simula la transmision sobre un canal que integra sustituciones y borrados
+"""
 def erase_channel(enviado,original,p_subs,p_erase):
-    #print(f"Bio channel P_subs:{p_subs} P_erase:{p_erase} P_ins:{p_ins} ")
     recibido = []
     for nuc in range(len(enviado)):
         u = rand_prob()
-        if u < p_erase: # erase
+        if u < p_erase:
             recibido.append('*')
-            #print("erase")
-  
-        elif u < p_erase + p_subs:#Substitute
+        elif u < p_erase + p_subs:
             recibido.append(rand_nuc_diferente(original))
-            #print("subs")
         else:
             recibido.append(enviado[nuc])
-            #print("ok")
     return recibido
 
 """
-Retorna 1 en caso de error
+Verifica si las dos expresiones son iguales y retorna 1 en caso de error
 """
 def contar_error(original, decodificado):
     return 1 if original != decodificado else 0
 
-######################################################################################################################################################
-puntos = 20
-#p_vals = p_curve = np.logspace(-3, 0, puntos)  # 50 puntos entre 10^-3 y 1
-#p_vals = p_curve = np.linspace(0.001, 1, puntos)  # Por ejemplo
-p_vals = p_curve = np.linspace(0.001, 1, puntos)  # Por ejemplo
+"""
+Parametros para la simulación
+"""
+puntos = 30
+p_vals = p_curve = np.linspace(0.1, 1, puntos)
+prior = {
+    'A': 0.2,
+    'C': 0.3,
+    'G': 0.3,
+    'T': 0.2
+}
+p_erase = 0.1
+p_ins = 0.1
+n = 8 #Longitud de codigo de repetición
 
-#p_curve = np.linspace(0.6, 1, puntos)  # Por ejemplo
-#p_vals =[0.75]
 sim_mv_erase,sim_mv_ins,sim_mv,sim_mv_ins, sim_ml, sim_map, sim_logml,sim_logmap = [], [], [], [], [], [], [], []
 sim_mv_bio, sim_ml_bio, sim_map_bio, sim_log_ml_bio, sim_log_map_bio = [], [], [], [], []
 contador = 0
-p_erase = 0
-p_ins = 0
-n = 1 #Longitud de codigo de repetición
-prior = {
-    'A': 0.1,
-    'C': 0.4,
-    'G': 0.4,
-    'T': 0.1
-}
 
-for p in p_vals: # Barrido de p
-    print(datetime.now().strftime("%H:%M:%S"))
-    #N = N_requerido(p, k=10)     # usa k=100 o 1000 según precisión deseada
-    N = 200_000
-    print(f"p = {p:.1e}   →   Pe≈{Pe_teorico(p):.1e}   →   N = {N:.1e}")
-    
-    #print(p)
-    print(f"progreso:{contador}/{puntos}")
-    contador+=1
+for p in p_vals: 
+    #Restablecemos contadores y contenedores
     error_mv_erase = error_mv_ins =  error_mv = error_mv_ins = error_ml = error_map = error_logml = error_logmap = 0
-    
     error_mv_bio = error_ml_bio = error_map_bio= error_log_ml_bio= error_log_map_bio = 0
+    
+    N = N_requerido(p, k=10_000)   
+    print(f"current time :{datetime.now().strftime("%H:%M:%S")}")  
+    print(f"p = {p:.1e}   →   Pe≈{Pe_teorico(p):.1e}   →   N = {N:.1e}")
+    print(f"progreso:{contador}/{puntos}")
+    
+    contador+=1
+
     
     for _ in range (N): # Para N iteraciones 
         nucleotido = rand_nucleotido(prior) #Creamos el nucleotido de manera aleatoria
         deco_nucleotido = ' ' # variable para almacenar el nucleotido decodificado
+
+#codificacón (codigo de repetición)    
+        sent_codeword = nucleotido * n 
+#Transmision
+        
+        """
+        received_codeword = channel_transmision(sent_codeword,nucleotido,p)     # transmision sobre canal sustitución
+        received_erase = erase_channel(sent_codeword,nucleotido,p,p_erase)      # transmision sobre canal borrado
+        received_ins = ins_channel(sent_codeword,nucleotido,p,p_ins)            # transmision sobre canal inserción        
+        """
+        received_bio = bio_channel(sent_codeword,nucleotido,p,p_erase,p_ins)    # transmision sobre canal biológico
+        
+#Decodificación 
+        """
+        # decodificacion sobre canal borrado
+        deco_mv_erase = majority_voting(nucleotido, received_erase,prior)       # decodificacion usando majority voting
+
+        # decodificacion sobre canal inserción
+        deco_mv_ins = majority_voting(nucleotido, received_ins,prior)           # decodificacion usando majority voting
+        
+        # decodificación sobre canal sustitucion, usando diversos metodos 
+        deco_mv =  majority_voting(nucleotido, received_codeword,prior)         # decodificacion usando majority voting
+        deco_ml = prob_decoders(prior, received_codeword, 'ML',p,n)             # decodificacion usando maximum likelihood
+        deco_map = prob_decoders(prior, received_codeword, 'MAP',p,n)           # decodificacion usando maximum a posteriori
+        deco_logml = prob_decoders(prior, received_codeword, 'logML', p, n)     # decodificacion usando ML logaritmico
+        deco_logmap = prob_decoders(prior, received_codeword, 'logMAP', p, n)   # decodificacion usando MAP logaritmico
+        """
+        # decodificacón sobre canal biologico 
+        deco_mv_bio = majority_voting(nucleotido, received_bio,prior)           # decodificacion usando majority voting
+        """
+        deco_ml_bio = prob_decoders(prior, received_bio, 'ML',p,n)              # decodificacion usando maximum likelihood
+        deco_map_bio = prob_decoders(prior, received_bio, 'MAP',p,n)            # decodificacion usando maximum a posteriori
+        """
+        deco_log_ml_bio = prob_decoders(prior, received_bio, 'logML',p,n)       # decodificacion usando ML logaritmico
+        deco_log_map_bio = prob_decoders(prior, received_bio, 'logMAP',p,n)     # decodificacion usando MAP logaritmico   
+
+#Conteo de errores de decodificación
+
+        # Canal biologico 
+        error_mv_bio +=contar_error(nucleotido,deco_mv_bio)                     # majority voting 
+        error_log_ml_bio +=contar_error(nucleotido,deco_log_ml_bio)             # ML logaritmico
+        error_log_map_bio +=contar_error(nucleotido,deco_log_map_bio)           # MAP logaritmico
+        """
+        error_ml_bio +=contar_error(nucleotido,deco_ml_bio)                     # maximum likelihood   
+        error_map_bio +=contar_error(nucleotido,deco_map_bio)                   # maximum a posteriori
+        """
+        
+        """
+        # Canal borrado
+        error_mv_erase +=contar_error(nucleotido,deco_mv_erase)                 # majority voting
+        # Canal inserción
+        error_mv_ins +=contar_error(nucleotido,deco_mv_ins)                     # majority voting
+
+        # canal sustitución
+        error_mv += contar_error(nucleotido,deco_mv)                # majority voting
+        error_ml += contar_error(nucleotido,deco_ml)                # maximum likelihood 
+        error_map += contar_error(nucleotido,deco_map)              # maximum a posteriori
+        error_logml += contar_error(nucleotido, deco_logml)         # ML logaritmico
+        error_logmap += contar_error(nucleotido, deco_logmap)       # MAP logaritmico
+        """
+# Guardamos promedios
     
-#________________Transmision
-        sent_codeword = nucleotido * n # codigo de repetición
-        """
-        received_codeword = channel_transmision(sent_codeword,nucleotido,p) # Efectos del canal
-        received_erase = erase_channel(sent_codeword,nucleotido,p,p_erase)
-        received_ins = ins_channel(sent_codeword,nucleotido,p,p_ins)
-        """
-        #received_bio = bio_channel(sent_codeword,nucleotido,p,p_erase,p_ins)
-        received_bio = bio_channel(sent_codeword,nucleotido,p,p_erase,p_ins)
-        
-        #print(p)
-       # print(f" enviado, recibido {sent_codeword},{received_bio} ")
-
-        
-#_________________Decodificación 
-        """
-        deco_mv_erase = majority_voting(nucleotido, received_erase,prior)# ok 
-        deco_mv_ins = majority_voting(nucleotido, received_ins,prior)
-        
-        deco_mv =  majority_voting(nucleotido, received_codeword,prior)
-        deco_ml = prob_decoders(prior, received_codeword, 'ML',p,n)
-        deco_map = prob_decoders(prior, received_codeword, 'MAP',p,n)
-        deco_logml = prob_decoders(prior, received_codeword, 'logML', p, n)
-        deco_logmap = prob_decoders(prior, received_codeword, 'logMAP', p, n)
-        """
-
-        
-        deco_mv_bio = majority_voting(nucleotido, received_bio,prior)
-        """
-        deco_ml_bio = prob_decoders(prior, received_bio, 'ML',p,n)
-        deco_map_bio = prob_decoders(prior, received_bio, 'MAP',p,n)
-        """
-        deco_log_ml_bio = prob_decoders(prior, received_bio, 'logML',p,n)
-        deco_log_map_bio = prob_decoders(prior, received_bio, 'logMAP',p,n)
-
-#_________________Comprobacion de Decodificación
-        error_mv_bio +=contar_error(nucleotido,deco_mv_bio) 
-        """
-        error_ml_bio +=contar_error(nucleotido,deco_ml_bio) 
-        error_map_bio +=contar_error(nucleotido,deco_map_bio) 
-        """
-        error_log_ml_bio +=contar_error(nucleotido,deco_log_ml_bio) 
-        error_log_map_bio +=contar_error(nucleotido,deco_log_map_bio) 
-        
-        
-        """
-        error_mv_erase +=contar_error(nucleotido,deco_mv_erase)
-        error_mv_ins +=contar_error(nucleotido,deco_mv_ins)
-
-        
-        error_mv += contar_error(nucleotido,deco_mv)
-        error_ml += contar_error(nucleotido,deco_ml)
-        error_map += contar_error(nucleotido,deco_map)
-        error_logml += contar_error(nucleotido, deco_logml)
-        error_logmap += contar_error(nucleotido, deco_logmap)
-
-        """
-    # Guardamos promedios
+    # canal biológico
     sim_mv_bio.append(error_mv_bio/N)
     sim_ml_bio.append(error_ml_bio/N)
     sim_map_bio.append(error_map_bio/N)
     sim_log_ml_bio.append(error_log_ml_bio/N)
     sim_log_map_bio.append(error_log_map_bio/N)
-"""
-
-
+""" 
+    # canal borrado
     sim_mv_erase.append(error_mv_erase / N)
+    # canal inserción
     sim_mv_ins.append(error_mv_ins / N)
     
+    # canal sustitución
     sim_mv.append(error_mv / N)
     sim_ml.append(error_ml / N)
     sim_map.append(error_map / N)
@@ -404,26 +384,20 @@ for p in p_vals: # Barrido de p
     sim_logmap.append(error_logmap / N)
 
 """
-#------------------------------------------------------------------------------------------------------------
-
-
-Error_Teorico_MV = (7 * p**2 - 4 * p**3) / 3   
-
-
 
 # Crear la figura
 plt.figure(figsize=(10, 6))
 ax = plt.gca()
 ax.set_facecolor('white')
-# Curvas teóricas
 
+# Curvas teóricas
 theo_mv = (7 * p_curve**2 - 4 * p_curve**3) / 3
 theo_ml = np.where(p_curve < 0.75, theo_mv, 1 - 16 * (p_curve / 3)**3)
+plt.plot(p_curve, theo_mv, label='Pe teorica canal sustitucióin (MV Decoder)', color='#485460', linewidth=1.5, linestyle='--')
+plt.plot(p_curve, theo_ml, label='Pe teorica canal sustitucióin (ML Decoder)', color='#1e272e', linewidth=1.5)
 
-plt.plot(p_curve, theo_mv, label='Theoretical Substitution Model (MV Decoder)', color='#485460', linewidth=1.5, linestyle='--')
-plt.plot(p_curve, theo_ml, label='Theoretical Substitution Model (ML Decoder)', color='#1e272e', linewidth=1.5)
-
-# Puntos simulados
+# Puntos simulados canal biologico
+# majority voting
 plt.scatter(p_vals, sim_mv_bio,
             label='MV ',
             color='#05c46b',
@@ -433,6 +407,7 @@ plt.plot(p_vals, sim_mv_bio,
          linestyle='-',
          linewidth=1)
 """
+# maximum likelihood
 plt.scatter(p_vals, sim_ml_bio,
             label='ML ',
             color='#ffa801',
@@ -441,7 +416,7 @@ plt.plot(p_vals, sim_ml_bio,
          color='#ffa801',
          linestyle='-',
          linewidth=1)
-
+# maximum a posterioro
 plt.scatter(p_vals, sim_map_bio,
             label='MAP ',
             color='#f53b57',
@@ -452,6 +427,7 @@ plt.plot(p_vals, sim_map_bio,
          linewidth=1)
 
 """
+# ML logaritmico
 plt.scatter(p_vals, sim_log_ml_bio,
             label='Log ML ',
             color='#D980FA',
@@ -460,6 +436,8 @@ plt.plot(p_vals, sim_log_ml_bio,
          color='#D980FA',
          linestyle='-',
          linewidth=1)
+
+# MAP logaritmico
 plt.scatter(p_vals, sim_log_map_bio,
             label='Log MAP',
             color='#0fbcf9',
@@ -468,9 +446,6 @@ plt.plot(p_vals, sim_log_map_bio,
          color='#0fbcf9',
          linestyle='-',
          linewidth=1)
-
- 
-
 
 # Línea vertical en p = 0.75
 plt.axvline(x=0.75, color='gray', linestyle=':', linewidth=2, label='p = 0.75')
@@ -481,14 +456,12 @@ plt.axvline(x=0.75, color='gray', linestyle=':', linewidth=2, label='p = 0.75')
 
 # Etiquetas y leyenda
 plt.xlabel('p')
-plt.ylabel('Error Probability')
-plt.title(f'BioChannel \n erasure = {p_erase*100:.0f}%, insert = {p_ins*100:.0f}%, Repetition Code (Length = {n})',fontsize=12, color='#1e272e')
+plt.ylabel('Probabilidad de error')
+plt.title(f'Canal biológico  \n borrados = {p_erase*100:.0f}%, inserciones = {p_ins*100:.0f}%, código de repetición (longitud = {n})',fontsize=12, color='#1e272e')
 bbox=dict(facecolor='white', alpha=0.8)
 plt.grid(True, which='both', linestyle=':')
 plt.legend()
 plt.tight_layout()
-
 plt.gca().set_aspect('auto')  # relación aspecto automática
-plt.savefig('bio.pdf', format='pdf', bbox_inches='tight' )
+plt.savefig(f'CanalBiolofico_n{n}_ins{p_ins*100:.0f}_borr{p_erase*100:.0f}.pdf', bbox_inches='tight')
 plt.show()
-  
