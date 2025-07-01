@@ -305,7 +305,7 @@ for p in p_vals:
     error_mv_bio = error_ml_bio = error_map_bio= error_log_ml_bio= error_log_map_bio = 0
     
     N = N_requerido(p, k=10_000)   
-    print(f"current time :{datetime.now().strftime("%H:%M:%S")}")  
+    print(f"current time :{datetime.now().strftime('%H:%M:%S')}")
     print(f"p = {p:.1e}   →   Pe≈{Pe_teorico(p):.1e}   →   N = {N:.1e}")
     print(f"progreso:{contador}/{puntos}")
     
